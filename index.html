@@ -372,7 +372,12 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:40px 0 2
         <div style="margin:14px 0 10px;padding:10px 12px;background:rgba(148,163,184,.08);border-radius:8px;border:1px dashed rgba(148,163,184,.2);font-size:12px;color:#94a3b8">
           🔒 <b>No incluye Utilidades:</b> SMS, Citas, IA, Auditoría
         </div>
-        <a href="#contacto" class="btn btn-secondary">Contactar</a>
+        <a href="#" class="btn btn-secondary" data-plan-subscribe="STD_MES" data-testid="landing-std-subscribe">💳 Suscribirse (mensual)</a>
+        <a href="#" class="btn btn-secondary" data-plan-subscribe="STD_ANY" data-testid="landing-std-subscribe-year" style="margin-top:8px;background:transparent;color:#94a3b8;border:1px solid #64748b;font-size:12px">Suscribirse anual · ahorra 58,90€</a>
+        <div style="margin-top:10px;padding:8px 10px;background:rgba(61,220,151,.08);border:1px dashed rgba(61,220,151,.35);border-radius:8px;text-align:center;font-size:12px;color:#a7f3d0" data-testid="landing-std-trial-badge">
+          🎁 <b>Prueba gratuita 60 días • Sin tarjeta</b>
+        </div>
+        <div style="margin-top:6px;text-align:center;font-size:11px;color:#94a3b8">Cancela cuando quieras · Sin permanencia</div>
       </div>
 
       <div class="plan featured" data-plan-prm>
@@ -400,7 +405,12 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:40px 0 2
         <ul class="plan-features" style="margin-top:8px">
           <li>Soporte prioritario (4h)</li>
         </ul>
-        <a href="#contacto" class="btn btn-primary">Contactar</a>
+        <a href="#" class="btn btn-primary" data-plan-subscribe="PREMIUM_MES" data-testid="landing-prm-subscribe">🚀 Suscribirse (mensual)</a>
+        <a href="#" class="btn btn-primary" data-plan-subscribe="PREMIUM_ANY" data-testid="landing-prm-subscribe-year" style="margin-top:8px;background:transparent;color:#c4b5fd;border:2px solid #a855f7;font-size:12px;box-shadow:none">Suscribirse anual · ahorra 78,90€</a>
+        <div style="margin-top:10px;padding:8px 10px;background:rgba(168,85,247,.12);border:1px dashed rgba(168,85,247,.4);border-radius:8px;text-align:center;font-size:12px;color:#e9d5ff" data-testid="landing-prm-trial-badge">
+          🎁 <b>Prueba gratuita 60 días • Sin tarjeta</b>
+        </div>
+        <div style="margin-top:6px;text-align:center;font-size:11px;color:#c4b5fd">Cancela cuando quieras · Sin permanencia</div>
       </div>
 
     </div>
@@ -601,12 +611,60 @@ function sendContact(e){
   // Tanca en redimensionar a desktop
   window.addEventListener('resize', () => { if(window.innerWidth > 768) setOpen(false) });
 })();
+// ── Suscripció Stripe ───────────────────────────────────────────────────
+// Els botons "Suscribirse" de la secció Planes envien un POST a
+// /api/payments/create-subscription del backend d'Emergent. El backend crea
+// una Checkout Session (mode=subscription) i retorna la URL de Stripe on
+// redirigim l'usuari. Un cop pagat, Stripe redirigeix al success_url i el
+// webhook activa la llicència + envia email automàtic amb el codi.
+const CHECKOUT_API = 'https://project-helper-47.emergent.host/api/payments/create-subscription';
+function isValidEmail(e){ return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test((e||'').trim()); }
+document.addEventListener('click', async function(ev){
+  const btn = ev.target.closest && ev.target.closest('[data-plan-subscribe]');
+  if (!btn) return;
+  ev.preventDefault();
+  const pkg = btn.getAttribute('data-plan-subscribe');
+  const original = btn.textContent;
+  // Demanem email abans de redirigir a Stripe (obligatori pel Checkout)
+  let email = window.prompt('Introduce tu email para asociar la suscripción:\n(recibirás el código de licencia aquí)', '');
+  if (email === null) return; // usuari ha cancel·lat
+  email = (email||'').trim();
+  if (!isValidEmail(email)){
+    alert('⚠️ Email no válido. Por favor, introduce un email correcto (ejemplo: nombre@dominio.com)');
+    return;
+  }
+  btn.textContent = '⏳ Redirigiendo…';
+  btn.style.pointerEvents = 'none';
+  try{
+    const originUrl = window.location.origin;
+    const r = await fetch(CHECKOUT_API, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        package_id: pkg,
+        customer_email: email,
+        origin_url: originUrl
+      })
+    });
+    if (!r.ok){
+      const txt = await r.text().catch(()=> '');
+      throw new Error('HTTP '+r.status+' '+txt);
+    }
+    const data = await r.json();
+    if (data.url){
+      window.location.href = data.url;
+    } else {
+      throw new Error('sin_url_retornada');
+    }
+  }catch(err){
+    console.error('[Stripe]', err);
+    alert('⚠️ Servicio de pago temporalmente no disponible. Contacta con info@medicarplus.es y te enviaremos las instrucciones de pago manualmente.\n\nDetalle: ' + (err.message||err));
+    btn.textContent = original;
+    btn.style.pointerEvents = '';
+  }
+});
 </script>
 
-</body>
-</html>
-
-</script>
-
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"7f7b0fd8732c4326aae4b9d58d5c514a","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
